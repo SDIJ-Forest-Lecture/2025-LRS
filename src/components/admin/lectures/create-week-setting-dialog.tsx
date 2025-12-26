@@ -102,7 +102,7 @@ export function CreateWeekSettingDialog() {
                                     <FormItem>
                                         <FormLabel>주차 (Week)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" {...field} />
+                                            <Input type="number" {...field} value={Number(field.value) || ''} onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -115,7 +115,7 @@ export function CreateWeekSettingDialog() {
                                     <FormItem>
                                         <FormLabel>연도 (Year)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" {...field} />
+                                            <Input type="number" {...field} value={Number(field.value) || ''} onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
