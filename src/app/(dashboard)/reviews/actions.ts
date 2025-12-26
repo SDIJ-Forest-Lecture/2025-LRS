@@ -38,6 +38,8 @@ export async function saveReview(
 
     let error;
 
+    let currentReviewId = reviewId;
+
     if (reviewId && reviewId !== 'new') {
         // Update
         const res = await supabase
@@ -46,24 +48,56 @@ export async function saveReview(
             .eq('id', reviewId);
         error = res.error;
     } else {
-        // Create - check if exists first to avoid dupes if 'new' is used carelessly? 
-        // Rely on unique constraints or upsert? 
-        // assignment_id is unique? No, assignment_id -> review is 1:1 roughly? Schema says assignment_id FK.
-        // Schema doesn't strictly enforce UNIQUE(assignment_id) but one assignment usually has one review.
-
+        // Create
+        // Need to return data to get ID
         const res = await supabase.from('reviews').insert(payload).select('id').single();
         error = res.error;
-        // if successful, we could return new ID to redirect.
+        if (res.data) {
+            currentReviewId = res.data.id;
+        }
     }
 
-    if (error) {
-        return { error: error.message };
+    if (error || !currentReviewId) {
+        return { error: error?.message || "Creation failed" };
     }
 
     revalidatePath('/assignments');
-    revalidatePath(`/reviews/${reviewId}`);
+    revalidatePath(`/reviews/${currentReviewId}`);
 
     if (isSubmit) {
+        // Trigger AI Evaluation immediately (awaiting it for simplicity as traffic is low)
+        try {
+            // Need to fetch full data for AI
+            const { data: fullReview } = await supabase.from('reviews').select('*').eq('id', currentReviewId).single();
+            const { data: assignment } = await supabase
+                .from('assignments')
+                .select('*, lectures(*, subjects(*), instructors(*))')
+                .eq('id', assignmentId)
+                .single();
+
+            if (fullReview && assignment && assignment.lectures) {
+                const { evaluateReview } = await import('@/lib/openai');
+                const evalResult = await evaluateReview(fullReview, assignment.lectures);
+
+                if (evalResult) {
+                    await supabase.from('reviews').update({
+                        evaluation_grade: evalResult.grade,
+                        specificity_score: evalResult.specificity_score,
+                        logic_score: evalResult.logic_score,
+                        evidence_score: evalResult.evidence_score,
+                        strengths: evalResult.strengths,
+                        weaknesses: evalResult.weaknesses,
+                        improvement_tips: evalResult.suggestions,
+                        status: 'evaluated', // Update status to evaluated
+                        evaluated_at: new Date().toISOString()
+                    }).eq('id', currentReviewId);
+                }
+            }
+        } catch (aiError) {
+            console.error("AI Trigger Failed", aiError);
+            // Do not fail the submission itself, just log
+        }
+
         redirect('/assignments');
     }
 

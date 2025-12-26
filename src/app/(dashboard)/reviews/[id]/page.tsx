@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReviewForm } from "@/components/forms/review-form";
+import { AIReport } from "@/components/reviews/ai-report";
 import { notFound, redirect } from "next/navigation";
 
 export default async function ReviewPage({ params, searchParams }: { params: { id: string }, searchParams: { assignmentId: string } }) {
@@ -49,6 +50,9 @@ export default async function ReviewPage({ params, searchParams }: { params: { i
   return (
     <div className="container mx-auto max-w-3xl py-10">
       <h1 className="text-2xl font-bold mb-6">강의평 작성</h1>
+
+      {review && <AIReport review={review} />}
+
       <ReviewForm
         assignmentId={assignment.id}
         initialData={review}

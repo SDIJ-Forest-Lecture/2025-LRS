@@ -100,13 +100,24 @@ export interface Review {
   assignment_id: string;
   user_id: string;
   total_score: number;
-  timestamps: Timestamp[];
   content_review: string;
   delivery_review: string;
   structure_review: string;
   overall_review: string;
-  status: ReviewStatus;
+  timestamps: any[]; // JSONB
+  status: 'draft' | 'submitted' | 'evaluated' | 'rejected';
   submitted_at?: string;
+  evaluated_at?: string;
+
+  // AI Evaluation Fields
+  evaluation_grade?: 'A' | 'B' | 'C' | 'D';
+  specificity_score?: number;
+  logic_score?: number;
+  evidence_score?: number;
+  strengths?: string;
+  weaknesses?: string;
+  improvement_tips?: string;
+
   created_at: string;
   updated_at: string;
 }
