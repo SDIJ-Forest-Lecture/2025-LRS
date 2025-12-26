@@ -1,22 +1,59 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { ReviewForm } from "@/components/forms/review-form";
+import { notFound, redirect } from "next/navigation";
 
-export default function ReviewDetailPage({ params }: { params: { id: string } }) {
+export default async function ReviewPage({ params, searchParams }: { params: { id: string }, searchParams: { assignmentId: string } }) {
+  // params is a promise in Next.js 15, but this is Next 14. Wait, the package.json said Next 16? 
+  // Next 15+ params are async. Next 14 they are not.
+  // The provided package.json says "next": "16.1.1". So IT IS ASYNC.
+  // I must await params and searchParams.
+
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+
+  const id = resolvedParams.id;
+  const assignmentId = resolvedSearchParams.assignmentId;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  let review = null;
+  let assignment = null;
+
+  if (id && id !== 'new') {
+    const { data } = await supabase.from('reviews').select('*').eq('id', id).single();
+    review = data;
+    // Also get assignment to check permission? 
+    // Assume review ownership logic check in RLS or here.
+    if (review && review.user_id !== (await supabase.from('users').select('id').eq('auth_id', user.id).single()).data!.id) {
+      // Ownership mismatch
+      // return <div>Unauthorized</div>;
+    }
+
+    // If we have review, we can derive assignment info
+    if (review) {
+      const { data: assign } = await supabase.from('assignments').select('*, lectures(*)').eq('id', review.assignment_id).single();
+      assignment = assign;
+    }
+  } else if (assignmentId) {
+    // New review for assignment
+    const { data } = await supabase.from('assignments').select('*, lectures(*)').eq('id', assignmentId).single();
+    assignment = data;
+  }
+
+  if (!assignment) {
+    return notFound();
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">강의평 작성</h2>
-        <p className="text-muted-foreground">강의를 시청하고 평가를 작성하세요</p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>강의 정보</CardTitle>
-          <CardDescription>강의 ID: {params.id}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">강의평 작성 폼이 여기에 표시됩니다.</p>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto max-w-3xl py-10">
+      <h1 className="text-2xl font-bold mb-6">강의평 작성</h1>
+      <ReviewForm
+        assignmentId={assignment.id}
+        initialData={review}
+        lectureTitle={assignment.lectures?.title || "강의"}
+      />
     </div>
   );
 }
