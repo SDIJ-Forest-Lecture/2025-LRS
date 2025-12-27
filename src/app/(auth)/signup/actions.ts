@@ -1,11 +1,11 @@
 'use server'
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { signupSchema, type SignupInput } from "@/lib/validations";
 import { redirect } from "next/navigation";
 
 export async function signup(data: SignupInput) {
-    const supabase = await createClient(); // Await strictly required
+    const supabase = await createClient(); // For Auth
 
     const { email, password, name, phone } = data;
 
@@ -28,10 +28,10 @@ export async function signup(data: SignupInput) {
         return { error: "회원가입 중 오류가 발생했습니다. (No User Returned)" };
     }
 
-    // 2. Insert into public.users table
-    // Note: If email confirmation is enabled, this might need to happen differently (e.g. database trigger),
-    // but for now we insert directly.
-    const { error: dbError } = await supabase
+    // 2. Insert into public.users table using Service Role (Bypass RLS)
+    const adminSupabase = await createAdminClient();
+
+    const { error: dbError } = await adminSupabase
         .from('users')
         .insert({
             auth_id: authData.user.id,
@@ -43,10 +43,9 @@ export async function signup(data: SignupInput) {
         });
 
     if (dbError) {
-        // If DB insert fails, we might want to cleanup the auth user, but for now just return error.
         console.error("DB Insert Error:", dbError);
         return { error: "프로필 생성 중 오류가 발생했습니다." };
     }
 
-    redirect("/");
+    redirect("/login");
 }
